@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
+import { playAlarm, stopAlarm } from '../utils/audio'
+import { sendNotification } from '../utils/notifications'
 
 const PRESETS = [
   { label: '5m', seconds: 300 },
@@ -21,6 +23,8 @@ export default function Timer() {
           if (prev <= 1) {
             clearInterval(timerRef.current!)
             setIsRunning(false)
+            playAlarm()
+            sendNotification('Timer Finished!', { body: 'Your timer has reached zero.', requireInteraction: true })
             return 0
           }
           return prev - 1
@@ -52,6 +56,7 @@ export default function Timer() {
     setIsRunning(false)
     setTimeLeft(0)
     setInitialTime(0)
+    stopAlarm()
   }
 
   const handleCustomSubmit = (e: React.FormEvent) => {

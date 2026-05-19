@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { playAlarm, stopAlarm } from '../utils/audio'
+import { sendNotification } from '../utils/notifications'
 
 export default function Clock() {
   const [time, setTime] = useState(new Date())
@@ -28,6 +30,15 @@ export default function Clock() {
   // Check if alarm should ring (simple mock implementation)
   const currentHoursAndMinutes = `${time.getHours().toString().padStart(2, '0')}:${time.getMinutes().toString().padStart(2, '0')}`
   const isAlarmRinging = alarm === currentHoursAndMinutes && time.getSeconds() < 5 // Ring for 5 seconds
+
+  useEffect(() => {
+    if (isAlarmRinging) {
+      playAlarm()
+      sendNotification('Alarm!', { body: `It is ${alarm}`, requireInteraction: true })
+    } else {
+      stopAlarm()
+    }
+  }, [isAlarmRinging, alarm])
 
   return (
     <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto space-y-12 py-8">
