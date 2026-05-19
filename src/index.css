@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  body {
+    @apply bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-50 transition-colors duration-300 antialiased select-none;
+    touch-action: manipulation;
+  }
+
+  /* Allow text selection in specific inputs if needed */
+  input, textarea {
+    @apply select-text;
+  }
+}
