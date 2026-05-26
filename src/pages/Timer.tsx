@@ -10,26 +10,58 @@ const PRESETS = [
 ]
 
 export default function Timer() {
-  const [timeLeft, setTimeLeft] = useState(0)
-  const [initialTime, setInitialTime] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
+  const [initialTime, setInitialTime] = useState(() => {
+    return parseInt(localStorage.getItem('timerInitial') || '0', 10)
+  })
+  
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const isRunning = localStorage.getItem('timerIsRunning') === 'true'
+    if (isRunning) {
+      const target = parseInt(localStorage.getItem('timerTarget') || '0', 10)
+      const left = Math.max(0, Math.ceil((target - Date.now()) / 1000))
+      return left
+    }
+    return parseInt(localStorage.getItem('timerTimeLeft') || '0', 10)
+  })
+  
+  const [isRunning, setIsRunning] = useState(() => {
+    return localStorage.getItem('timerIsRunning') === 'true'
+  })
+  
   const [customMinutes, setCustomMinutes] = useState('')
   const timerRef = useRef<number | null>(null)
+
+  // Handle ringing if it finished in background very recently (within 5 seconds)
+  useEffect(() => {
+    if (isRunning && timeLeft === 0) {
+      const target = parseInt(localStorage.getItem('timerTarget') || '0', 10)
+      if (Date.now() - target < 5000) {
+        playAlarm()
+        sendNotification('Timer Finished!', { body: 'Your timer has reached zero.', requireInteraction: true })
+      }
+      setIsRunning(false)
+      localStorage.setItem('timerIsRunning', 'false')
+      localStorage.setItem('timerTimeLeft', '0')
+    }
+  }, []) // run once on mount
 
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
       timerRef.current = window.setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current!)
-            setIsRunning(false)
-            playAlarm()
-            sendNotification('Timer Finished!', { body: 'Your timer has reached zero.', requireInteraction: true })
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
+        const target = parseInt(localStorage.getItem('timerTarget') || '0', 10)
+        const newTimeLeft = Math.max(0, Math.ceil((target - Date.now()) / 1000))
+        
+        setTimeLeft(newTimeLeft)
+        localStorage.setItem('timerTimeLeft', newTimeLeft.toString())
+
+        if (newTimeLeft <= 0) {
+          clearInterval(timerRef.current!)
+          setIsRunning(false)
+          localStorage.setItem('timerIsRunning', 'false')
+          playAlarm()
+          sendNotification('Timer Finished!', { body: 'Your timer has reached zero.', requireInteraction: true })
+        }
+      }, 200) // check more frequently for accuracy, but update state
     } else if (!isRunning && timerRef.current) {
       clearInterval(timerRef.current)
     }
@@ -37,18 +69,32 @@ export default function Timer() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [isRunning, timeLeft])
+  }, [isRunning, timeLeft > 0]) // Depend on isRunning and whether it's still counting
 
   const startTimer = (seconds: number) => {
+    const target = Date.now() + seconds * 1000
     setTimeLeft(seconds)
     setInitialTime(seconds)
     setIsRunning(true)
     setCustomMinutes('')
+    
+    localStorage.setItem('timerTarget', target.toString())
+    localStorage.setItem('timerInitial', seconds.toString())
+    localStorage.setItem('timerTimeLeft', seconds.toString())
+    localStorage.setItem('timerIsRunning', 'true')
   }
 
   const toggleTimer = () => {
     if (timeLeft > 0) {
-      setIsRunning(!isRunning)
+      const newIsRunning = !isRunning
+      setIsRunning(newIsRunning)
+      localStorage.setItem('timerIsRunning', newIsRunning.toString())
+      
+      if (newIsRunning) {
+        // Resuming
+        const target = Date.now() + timeLeft * 1000
+        localStorage.setItem('timerTarget', target.toString())
+      }
     }
   }
 
@@ -57,6 +103,11 @@ export default function Timer() {
     setTimeLeft(0)
     setInitialTime(0)
     stopAlarm()
+    
+    localStorage.removeItem('timerTarget')
+    localStorage.setItem('timerInitial', '0')
+    localStorage.setItem('timerTimeLeft', '0')
+    localStorage.setItem('timerIsRunning', 'false')
   }
 
   const handleCustomSubmit = (e: React.FormEvent) => {

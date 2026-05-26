@@ -1,40 +1,85 @@
 import { useState, useEffect, useRef } from 'react'
 
 export default function Stopwatch() {
-  const [time, setTime] = useState(0)
-  const [isRunning, setIsRunning] = useState(false)
-  const [laps, setLaps] = useState<number[]>([])
+  const [isRunning, setIsRunning] = useState(() => {
+    return localStorage.getItem('stopwatchIsRunning') === 'true'
+  })
+  
+  const [accumulated, setAccumulated] = useState(() => {
+    return parseInt(localStorage.getItem('stopwatchAccumulated') || '0', 10)
+  })
+
+  const [startTime, setStartTime] = useState(() => {
+    return parseInt(localStorage.getItem('stopwatchStartTime') || '0', 10)
+  })
+
+  const [laps, setLaps] = useState<number[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('stopwatchLaps') || '[]')
+    } catch {
+      return []
+    }
+  })
+
+  // Display time (derived)
+  const [displayTime, setDisplayTime] = useState(() => {
+    if (localStorage.getItem('stopwatchIsRunning') === 'true') {
+      const st = parseInt(localStorage.getItem('stopwatchStartTime') || '0', 10)
+      const acc = parseInt(localStorage.getItem('stopwatchAccumulated') || '0', 10)
+      return Date.now() - st + acc
+    }
+    return parseInt(localStorage.getItem('stopwatchAccumulated') || '0', 10)
+  })
   
   const timerRef = useRef<number | null>(null)
-  const lastUpdateRef = useRef<number>(0)
 
   useEffect(() => {
     if (isRunning) {
-      lastUpdateRef.current = Date.now()
       timerRef.current = window.setInterval(() => {
-        const now = Date.now()
-        const diff = now - lastUpdateRef.current
-        setTime((prevTime) => prevTime + diff)
-        lastUpdateRef.current = now
+        const currentDiff = Date.now() - startTime + accumulated
+        setDisplayTime(currentDiff)
       }, 10) // Update every 10ms for smooth centisecond display
     } else {
       if (timerRef.current) clearInterval(timerRef.current)
+      setDisplayTime(accumulated)
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
-  }, [isRunning])
+  }, [isRunning, startTime, accumulated])
 
   const startStop = () => {
-    setIsRunning(!isRunning)
+    const newIsRunning = !isRunning
+    setIsRunning(newIsRunning)
+    localStorage.setItem('stopwatchIsRunning', newIsRunning.toString())
+    
+    if (newIsRunning) {
+      // Start
+      const now = Date.now()
+      setStartTime(now)
+      localStorage.setItem('stopwatchStartTime', now.toString())
+    } else {
+      // Stop
+      const newAccumulated = Date.now() - startTime + accumulated
+      setAccumulated(newAccumulated)
+      setDisplayTime(newAccumulated)
+      localStorage.setItem('stopwatchAccumulated', newAccumulated.toString())
+    }
   }
 
   const lapReset = () => {
     if (isRunning) {
-      setLaps((prevLaps) => [time, ...prevLaps])
+      const currentLapTime = Date.now() - startTime + accumulated
+      const newLaps = [currentLapTime, ...laps]
+      setLaps(newLaps)
+      localStorage.setItem('stopwatchLaps', JSON.stringify(newLaps))
     } else {
-      setTime(0)
+      setAccumulated(0)
+      setDisplayTime(0)
       setLaps([])
+      localStorage.removeItem('stopwatchAccumulated')
+      localStorage.removeItem('stopwatchStartTime')
+      localStorage.removeItem('stopwatchLaps')
     }
   }
 
@@ -51,7 +96,7 @@ export default function Stopwatch() {
     }
   }
 
-  const currentFormatted = formatTime(time)
+  const currentFormatted = formatTime(displayTime)
 
   return (
     <div className="flex flex-col h-full max-w-md mx-auto py-6">
